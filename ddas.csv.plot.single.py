@@ -20,7 +20,7 @@ print data
 l=len(data.columns)
 print l
 if l==3:
-    data.plot(x='TIME',y=['CH1'],figsize=(14, 10)
+    data.plot(x='TIME',y=['CH1'],figsize=(14, 10),subplots=True)
     data.plot(x='TIME',y=['CH1 Peak Detect'],figsize=(14, 10))
 elif l==9:
     data.plot(x='TIME',y=['CH1','CH2','CH3','CH4'],figsize=(14, 10))
