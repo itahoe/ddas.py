@@ -10,7 +10,10 @@ pygame.init()
 
 global lock
 global serial_port
-lock = threading.Lock()
+
+
+lock            =   threading.Lock()
+out_file        =   open( "output.dat", 'wb'  )  
 
 
 class ReadStream(threading.Thread):
@@ -20,31 +23,25 @@ class ReadStream(threading.Thread):
 
     def __init__( self ):
         threading.Thread.__init__( self )                       #Call constructor of parent
-        self.ser            =   ser.Serial( serial_port, 115200 )     #Initialize serial port
-        self.data_smpl_size =   1024 / (8 * 2)
-        self.data_smpl      =   np.zeros( self.data_smpl_size )
-        #self.data_smpl      =   np.arange( self.data_smpl_size )
-        #self.data_smpl      =   np.empty( self.data_smpl_size )
+        self.ser            =   ser.Serial( serial_port, serial_baud )     #Initialize serial port
+        self.data_smpl_size =   (2048 / 8) / 2
+        #self.data_smpl      =   np.zeros( self.data_smpl_size )
+        #self.data_smpl      =   np.zeros( 1024, dtype=np.uint16 )
+        self.data_smpl      =   np.empty( self.data_smpl_size, dtype=np.uint16 )
         self.start()
 
     def run( self ):                                            #runs while thread is alive.
-        #num_bytes           = 400                               #Number of bytes to read at once
-        #num_smpls           = num_bytes / 2
         data_chnl_max       =   8
-        data_raw_len        =   1024
-        data_len            =   data_raw_len / 2
-        val                 = 0                                 #Read value
+        data_raw_len        =   2048
+        #val                 =   0                                 #Read value
         
         def frame_read( length ):
-            #global stream
             sync_tocken     =   self.ser.read(1)
 
             if(sync_tocken != '\x7E'):
                 sync            =   False
             else:
                 sync            =   True
-                #spare           =   self.ser.read(3)
-                #frame           =   self.ser.read( length )
 
             return sync
 
@@ -54,10 +51,15 @@ class ReadStream(threading.Thread):
                 spare           =   self.ser.read(3)
                 data_raw        =   self.ser.read( data_raw_len )
 
-                #sample          =   struct.Struct( 'HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH'  )
-                #data_smpl       =   sample.unpack( data_raw[:data_raw_len:data_chnl_max] )
-
                 sample          =   struct.Struct(  'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' \
+                                                    'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' \
+                                                    'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' \
+                                                    'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' \
+                                                    'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' \
+                                                    'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' \
+                                                    'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' \
+                                                    'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' \
+                                                    'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' \
                                                     'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' \
                                                     'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' \
                                                     'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' \
@@ -68,64 +70,17 @@ class ReadStream(threading.Thread):
 
                 data_block      =   sample.unpack( data_raw )
 
-                #data            =   self.ser.read( data_raw_len )
-                #data_raw            = self.ser.read( num_bytes )        #Read serial data
-                #byte_array          = unpack( '%dH' % num_smpls, rslt ) #Convert serial data to array of numbers
-                #data_smpl       =   struct.unpack( 'H' % data_raw_len, data_raw ) #Convert serial data to array of numbers
-
-
-                """
-                for smpl in data_smpl[0::8]:
+                for i in range( self.data_smpl_size ):
                     lock.acquire()
-                    #self.data           = np.roll(self.data,-1)
-                    #self.data[-1]       = byte + 2000
-                    self.data[-1]       = smpl + 2000
+                    self.data_smpl      = np.roll(self.data_smpl,-1)
+                    self.data_smpl[0]   = data_block[i*8+0]
                     lock.release()
-                """
 
-                """
-                for smpl in data_smpl:
-                    lock.acquire()
-                    #self.data           = np.roll(self.data,-1)
-                    #self.data[-1]       = byte + 2000
-                    self.data_smpl      = np.roll(self.data_smpl, -1)
-                    #self.data_smpl      = smpl
-                    lock.release()
-                """
-
-                """
-                for smpl in data_block[::8]:
-                    lock.acquire()
-                    #self.data_smpl      = np.roll(self.data_smpl, -1)
-                    np.append( self.data_smpl, smpl )
-                    lock.release()
-                """
-                for i in range( 64 ):
-                    self.data_smpl[i]   = data_block[i*8+0]
-
+                #out_file.write( self.data_smpl )
                 #print self.data_smpl
                 #print data_raw,
                 #print data_block
                 #print self.data_smpl
-
-
-                #for i in range( data_raw_len ):
-                    #lock.acquire()
-                    #byte0               = self.ser.read()
-                    #byte1               = self.ser.read()
-                    #self.data           = np.roll(byte0, -1)
-                    #self.data[-1]       = byte1
-                    #lock.release()
-
-
-            #sample      =   frame_parse( frame, frame_len )
-            #data        =   frame_parse( data_raw, data_raw_len )
-            #out_file.write( data[0] )
-            #x           =   arange( data_raw_len )
-            #y           =   data.copy()
-            #plot( x, y, 0, data_buff_size, 0, 1024, screen )
-                    
-
 
         self.ser.close()
 
@@ -138,7 +93,8 @@ class Display():
     
 
     def __init__(self):
-        self.screen         = pygame.display.set_mode((640, 480))
+        self.screen         = pygame.display.set_mode( (640, 480) )
+        pygame.display.set_caption( "DDAS plot" )
         self.clock          = pygame.time.Clock()
         self.data_reader    = ReadStream()
         self.run()
@@ -151,7 +107,7 @@ class Display():
         grid_color          =   0,   0,   0
         grid_width          =   1
         line_color          = 255, 255,   0
-        line_width          =   1
+        line_width          =   2
 
         #scale data
         xspan               = abs(xmax - xmin)
@@ -211,7 +167,7 @@ class Display():
                 x           = np.arange( data_smpl_size, dtype=np.uint16 )
                 y           = self.data_reader.data_smpl
                 lock.release()
-            #self.plot( x, y, 0, data_smpl_size, 0, 1024 )
+            #self.plot( x, y, 0, data_smpl_size, 0, 2048 )
             self.plot( x, y, 0, data_smpl_size, 0, 4096)
 
             #show FPS
@@ -228,3 +184,4 @@ except:
     sys.exit( 1 )
 
 display     = Display()
+out_file.close()
