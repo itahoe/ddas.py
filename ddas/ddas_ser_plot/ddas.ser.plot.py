@@ -4,6 +4,8 @@ import serial as ser
 import struct
 import sys
 import threading
+import matplotlib.pyplot as plt
+import scipy.fftpack
 
 
 pygame.init()
@@ -15,39 +17,27 @@ global serial_port
 lock            =   threading.Lock()
 out_file        =   open( "output.dat", 'wb'  )  
 
+data_raw_len    =   2048
+data_smpl_sizeof =   2
+data_chnl_max   =   8
 
 class ReadStream(threading.Thread):
         
-    #Thread event, stops the thread if it is set.
+    #thread event, stops the thread if it is set.
     stopthread = threading.Event()
 
     def __init__( self ):
-        threading.Thread.__init__( self )                       #Call constructor of parent
-        self.ser            =   ser.Serial( serial_port, serial_baud )     #Initialize serial port
-        self.data_smpl_size =   (2048 / 8) / 2
-        #self.data_smpl      =   np.zeros( self.data_smpl_size )
-        #self.data_smpl      =   np.zeros( 1024, dtype=np.uint16 )
+        threading.Thread.__init__( self )                               #call constructor of parent
+        self.ser            =   ser.Serial( serial_port, serial_baud )  #Initialize serial port
+        self.data_smpl_size =   data_raw_len / (data_chnl_max * data_smpl_sizeof)
         self.data_smpl      =   np.empty( self.data_smpl_size, dtype=np.uint16 )
         self.start()
 
-    def run( self ):                                            #runs while thread is alive.
-        data_chnl_max       =   8
-        data_raw_len        =   2048
-        #val                 =   0                                 #Read value
-        
-        def frame_read( length ):
+    def run( self ):                                                    #runs while thread is alive.
+        while not self.stopthread.isSet() :
             sync_tocken     =   self.ser.read(1)
 
-            if(sync_tocken != '\x7E'):
-                sync            =   False
-            else:
-                sync            =   True
-
-            return sync
-
-        while not self.stopthread.isSet() :
-            sync            =   frame_read(1)
-            if( sync ):
+            if(sync_tocken == '\x7E'):
                 spare           =   self.ser.read(3)
                 data_raw        =   self.ser.read( data_raw_len )
 
@@ -130,6 +120,12 @@ class Display():
                                 ( int(w * 0.1 * i), 0 ),
                                 ( int(w * 0.1 * i), h-1 ),
                                 grid_width )
+
+        pygame.draw.line(   self.screen,
+                            grid_color,
+                            ( 0, int(h * 0.5) ),
+                            ( w-1, int(h * 0.5) ),
+                            grid_width * 2 )
 
         #data
         for i in range( len(xp)-1 ):
