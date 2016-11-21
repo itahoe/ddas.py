@@ -18,8 +18,12 @@ lock            =   threading.Lock()
 out_file        =   open( "output.dat", 'wb'  )  
 
 data_raw_len    =   2048
-data_smpl_sizeof =   2
+smpl_sizeof     =   2
 data_chnl_max   =   8
+smpl_range_max  =   4096
+
+chnl_current    =   7
+
 
 class ReadStream(threading.Thread):
         
@@ -29,8 +33,9 @@ class ReadStream(threading.Thread):
     def __init__( self ):
         threading.Thread.__init__( self )                               #call constructor of parent
         self.ser            =   ser.Serial( serial_port, serial_baud )  #Initialize serial port
-        self.data_smpl_size =   data_raw_len / (data_chnl_max * data_smpl_sizeof)
+        self.data_smpl_size =   data_raw_len / (data_chnl_max * smpl_sizeof)
         self.data_smpl      =   np.empty( self.data_smpl_size, dtype=np.uint16 )
+        #self.data_smpl      =   np.empty( [self.data_smpl_size, data_chnl_max], dtype=np.uint16 )
         self.start()
 
     def run( self ):                                                    #runs while thread is alive.
@@ -38,7 +43,7 @@ class ReadStream(threading.Thread):
             sync_tocken     =   self.ser.read(1)
 
             if(sync_tocken == '\x7E'):
-                spare           =   self.ser.read(3)
+                reserved        =   self.ser.read(3)
                 data_raw        =   self.ser.read( data_raw_len )
 
                 sample          =   struct.Struct(  'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' 'HHHHHHHH' \
@@ -63,7 +68,7 @@ class ReadStream(threading.Thread):
                 for i in range( self.data_smpl_size ):
                     lock.acquire()
                     self.data_smpl      = np.roll(self.data_smpl,-1)
-                    self.data_smpl[0]   = data_block[i*8+0]
+                    self.data_smpl[0]   = data_block[i * 8 + chnl_current]
                     lock.release()
 
                 #out_file.write( self.data_smpl )
@@ -86,7 +91,7 @@ class Display():
         self.screen         = pygame.display.set_mode( (640, 480) )
         pygame.display.set_caption( "DDAS plot" )
         self.clock          = pygame.time.Clock()
-        self.data_reader    = ReadStream()
+        self.dataflow       = ReadStream()
         self.run()
         
 
@@ -141,7 +146,7 @@ class Display():
         
         #main loop supply
         font            = pygame.font.Font(pygame.font.match_font(u'mono'), 20)
-        data_smpl_size  = self.data_reader.data_smpl_size
+        data_smpl_size  = self.dataflow.data_smpl_size
         hold            = False
 
         while True:
@@ -149,7 +154,7 @@ class Display():
             event           = pygame.event.poll()
             if event.type == pygame.QUIT:
                 pygame.quit()
-                self.data_reader.stop()
+                self.dataflow.stop()
                 sys.exit()
             if event.type == pygame.KEYDOWN :
                 if event.key == pygame.K_h:
@@ -161,10 +166,10 @@ class Display():
             if not hold:
                 lock.acquire()
                 x           = np.arange( data_smpl_size, dtype=np.uint16 )
-                y           = self.data_reader.data_smpl
+                y           = self.dataflow.data_smpl
                 lock.release()
-            #self.plot( x, y, 0, data_smpl_size, 0, 2048 )
-            self.plot( x, y, 0, data_smpl_size, 0, 4096)
+
+            self.plot( x, y, 0, data_smpl_size, 0, smpl_range_max)
 
             #show FPS
             text = font.render("%3d fps"%self.clock.get_fps(), 1, (0, 10, 10))
@@ -176,7 +181,7 @@ try:
     serial_port     =   sys.argv[1]
     serial_baud     =   sys.argv[2]
 except:
-    print "usage:       ", sys.argv[0], "<serial port>"
+    print "usage:       ", sys.argv[0], "<serial port>, <serial baud>"
     sys.exit( 1 )
 
 display     = Display()
